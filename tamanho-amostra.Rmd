@@ -1,0 +1,237 @@
+---
+title: "Tamanho mínimo de amostra"
+author: "Arquimedes Macedo. Tiago Rodrigues"
+output:
+  html_document:
+    df_print: paged
+    theme: paper
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    code_folding: hide
+knit: (function(inputFile, encoding) {
+  rmarkdown::render(inputFile, encoding = encoding,
+  output_file = file.path(dirname(inputFile), 'index.html')) })
+---
+
+<script>
+function uncover(id) {
+    var x = document.getElementById(id);
+    if (x.style.display === "block") {
+      x.style.display = "none";
+    } else {
+      x.style.display = "block";
+    }
+}
+</script>
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(readxl)
+library(knitr)
+library(ggplot2)
+library(ggridges)
+library(reshape2)
+library(gridExtra)
+library(vtable)
+
+knitr::opts_chunk$set(out.height = "\\textheight",  out.width = "\\textwidth",
+                      out.extra = "keepaspectratio=true", fig.align = "center")
+```
+
+```{r echo=TRUE}
+my_theme <- theme_minimal(base_size = 11) +
+  theme(
+    axis.text = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5, size = 12),
+    axis.title = element_text(size = 10),
+    panel.grid.major = element_line(colour = "grey90", linewidth = 0.5),
+    panel.grid.minor = element_line(colour = adjustcolor("grey90", alpha.f = 0.5), linewidth = 0.25),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    plot.background = element_blank(),
+    axis.line.x = element_line(colour = "grey"),
+    axis.line.y = element_line(colour = "grey"),
+  )
+
+no_legend <- my_theme + theme(legend.position = "none")
+
+no_grid <- my_theme + theme(
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank()
+)
+
+no_axis <- my_theme + theme(
+  axis.line.x = element_blank(),
+  axis.line.y = element_blank()
+)
+```
+
+
+## Objetivo
+
+Estimar a quantidade total de leads mensais, com 80% de confiança, por anunciante, de anúncios de vendas de imóveis na cidade de Florianópolis (SC).
+
+_Lead_: é um contato de um cliente em potencial que demonstrou interesse em um produto ou serviço.
+
+IC de 80% foi escolhido devido à falta de informações (descrita logo mais), e também por ser este o valor máximo recomendado
+pela ABNT para avaliações de imóveis.
+
+
+## Metodologia
+
+Almeja-se, a partir de uma lista de anúncios ativos, gerada no início de cada mês, realizar uma busca diária de leads,
+usando uma amostra dos anúncios. A partir dos dados coletados, será possível estimar a quantidade total de leads mensais.
+
+No entanto, entende-se que há limitações nas informações disponíveis, como:
+
+- O número de leads por anúncio.
+- Tempo total que o anúncio ficou ativo.
+- A sazonalidade do mercado (oferta e demanda).
+- A eficácia do anúncio (qualidade do anúncio, preço, localização, etc).
+- A qualidade dos leads (interesse real ou apenas curiosidade).
+- A distribuição dos leads ao longo do tempo.
+
+Desta forma como um estudo piloto, foram obtidos leads diários, entre Janeiro e Julho de 2024, de anúncios de um anunciante.
+
+### Análise exploratória
+
+
+O banco de dados é composto por 3 colunas:
+
+- `ID`: identificador do lead.
+- `Date`: dia que o lead foi gerado.
+- `Listing`: identificador do anúncio.
+
+#### Amostra dos dados
+
+```{r echo=TRUE}
+dataset <- read_excel("dataset/leads.xlsx", col_types = c("numeric", "date", "text"))
+dataset$Date <- as.Date(dataset$Date)
+kable(head(dataset))
+```
+
+#### Leads diários
+
+
+```{r echo=TRUE}
+dataset %>%
+  group_by(Date) %>%
+  summarise(leads = n()) %>%
+  ggplot(aes(Date, leads)) +
+  geom_line(color = "royalblue", linewidth = 0.5) +
+  labs(title = "Leads diários",
+       x = "Dia",
+       y = "Leads") +
+  scale_x_date(date_labels = "%b %d", date_breaks = "1 week") +
+  my_theme + no_legend +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+```
+
+Notam-se picos em intervalos semi-regulares, o que pode indicar sazonalidade ou eventos específicos. Além disso, em Julho, houve uma alta variabilidade nos leads diários.
+
+#### Leads por anúncio
+
+Vamos analisar a quantidade de leads por anúncio.
+
+```{r echo=TRUE}
+data_sum <- dataset %>%
+  group_by(Listing) %>%
+  summarise(
+    date_min = min(Date),
+    date_max = max(Date),
+    days = if_else(date_min == date_max, 1, as.numeric(difftime(date_max, date_min, units = "days"))),
+    leads = n(),
+    leads_day = leads / if_else(days == 0, 1, days)
+  )
+
+kable(head(data_sum))
+```
+
+##### Estatísticas descritivas
+
+```{r}
+sumtable(data_sum, add.median = T)
+```
+
+
+
+```{r}
+themed_hist <- function(.plot, bins, label, bandwidth = 0.5, scale = 500) {
+  .plot +
+    geom_histogram(bins = bins, fill = "gray", color = adjustcolor("gray20", alpha.f = 0.3), alpha = 0.5) +
+    # geom_density(fill = "blue", alpha = 0.2) +
+    geom_density_ridges(aes(y = 1),
+                        bandwidth = bandwidth,
+                        scale = scale,
+                        fill = "royalblue",
+                        color = adjustcolor("blue", alpha.f = 0.4),
+                        alpha = 0.3) +
+    labs(x = label,
+         y = "") +
+    my_theme + no_legend + no_grid + no_axis
+}
+
+grid.arrange(
+  ggplot(data_sum, aes(leads_day)) %>% themed_hist(10, "Leads por dia", 0.2, 300),
+  ggplot(data_sum, aes(leads)) %>% themed_hist(16, "Leads por anúncio", 0.4),
+  ggplot(data_sum, aes(days)) %>% themed_hist(20, "Dias em anúncio", 5, 8000),
+  ncol = 3
+)
+```
+
+Observa-se uma assimetria à direita nos gráficos de `Leads por dia` e `Leads por anúncio`, indicando que a maioria dos anúncios tem poucos leads. Já `Dias em anúncio` mostra que a maioria dos anúncios ficam ativos por poucos dias.
+
+__Dúvida__: Que tipo de distribuição poderia ser usada para modelar esses dados? Gamma? Betha? Weibull?
+
+<button type="button" class="btn btn-primary" data-toggle="collapse" data-target="#answer-dist">Resposta</button>  
+<div id="answer-dist" class="collapse" style="padding-bottom: 16px;">
+<p align="center" width="100%">
+![](./images/shrug.jpg){width=50%}
+</p>
+</div>
+
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+data_sum %>%
+  ggplot() +
+  geom_point(aes(days, leads, size = leads_day),
+             shape = 21,
+             alpha = 0.4,
+             stroke = 0.8,
+             colour = "blue") +
+  geom_smooth(aes(days, leads, col = "Tendência"),
+              formula = 'y ~ x',
+              method = "loess",
+              linewidth = 0.8,
+              fill = "black",
+              alpha = 0.2) +
+  labs(title = "Leads vs. dias em anúncio",
+       x = "Dias",
+       y = "Leads",
+       size = "Leads por dia",
+       col = "") +
+  my_theme +
+  theme(legend.position = "bottom")
+```
+
+A relação entre `Leads` e `Dias` parece ser positiva, indicando que anúncios mais longos tendem a ter mais leads. No entanto, a relação não é linear, sugerindo que a taxa de crescimento diminui com o tempo. Entende-se que isso se deve ao aumento da probabilidade do anúncio ser observado por um comprador potencial.
+
+Já a relação entre `Leads por dia` e `Dias` parece ser negativa, indicando que anúncios mais longos tendem a ter menos leads por dia. Isso pode ser explicado pelo fato de que anúncios que duram mais possuem menos características atrativas para os compradores potenciais.
+
+__Nota__: a partir disso nota-se um novo problema, estamos vendo apenas anúncios que tiveram leads, e aqueles que não tiveram?
+
+
+## Resultados
+
+
+## Sugestão de tamanho da amostra
+
+Para trabalhos futuros sugerimos que o tamanho da amostra seja de
