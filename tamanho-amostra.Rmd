@@ -70,8 +70,7 @@ no_axis <- my_theme + theme(
 
 
 ## Objetivo
-
-Estimar a quantidade total de leads mensais, com 80% de confiança, por anunciante, de anúncios de vendas de imóveis na cidade de Florianópolis (SC).
+Estimar a quantidade total de leads diario, com 80% de confiança, de anúncios de vendas de imóveis na cidade de Florianópolis (SC).
 
 _Lead_: é um contato de um cliente em potencial que demonstrou interesse em um produto ou serviço.
 
@@ -82,7 +81,7 @@ pela ABNT para avaliações de imóveis.
 ## Metodologia
 
 Almeja-se, a partir de uma lista de anúncios ativos, gerada no início de cada mês, realizar uma busca diária de leads,
-usando uma amostra dos anúncios. A partir dos dados coletados, será possível estimar a quantidade total de leads mensais.
+usando uma amostra dos anúncios. A partir dos dados coletados, será possível estimar a media diaria de leads.
 
 No entanto, entende-se que há limitações nas informações disponíveis, como:
 
@@ -96,7 +95,6 @@ No entanto, entende-se que há limitações nas informações disponíveis, como
 Desta forma como um estudo piloto, foram obtidos leads diários, entre Janeiro e Julho de 2024, de anúncios de um anunciante.
 
 ### Análise exploratória
-
 
 O banco de dados é composto por 3 colunas:
 
